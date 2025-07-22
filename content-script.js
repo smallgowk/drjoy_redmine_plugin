@@ -4,14 +4,24 @@ function addCustomContextMenuItems() {
   if (menu) {
     const ul = menu.querySelector('ul');
     if (ul) {
-      // Create sub tasks (custom icon, style đồng bộ Redmine)
+      // Create sub tasks (SVG icon, thẳng hàng chuẩn Redmine)
       if (!ul.querySelector('.my-plugin-create-subtasks-item')) {
         const li = document.createElement('li');
         li.className = 'my-plugin-create-subtasks-item';
         const a = document.createElement('a');
         a.href = '#';
-        a.className = 'my-plugin-custom-icon';
-        a.innerHTML = '<span class="my-plugin-emoji-icon">📝</span> Create sub tasks';
+        a.innerHTML = `
+          <span style="display:inline-block;width:18px;margin-left:-22px;margin-right:4px;vertical-align:middle;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="2" width="12" height="12" rx="2" fill="#2196F3"/>
+              <path d="M5 8h6M8 5v6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          Create sub tasks`;
+        a.style.display = 'flex';
+        a.style.alignItems = 'center';
+        a.style.fontSize = '13px';
+        a.style.color = '#333';
         a.onclick = function(e) {
           e.preventDefault();
           e.stopPropagation();
@@ -26,14 +36,24 @@ function addCustomContextMenuItems() {
         li.appendChild(a);
         ul.appendChild(li);
       }
-      // Synchronize (custom icon, style đồng bộ Redmine)
+      // Synchronize (SVG icon, thẳng hàng chuẩn Redmine)
       if (!ul.querySelector('.my-plugin-synchronize-item')) {
         const li = document.createElement('li');
         li.className = 'my-plugin-synchronize-item';
         const a = document.createElement('a');
         a.href = '#';
-        a.className = 'my-plugin-custom-icon';
-        a.innerHTML = '<span class="my-plugin-emoji-icon">🔄</span> Synchronize';
+        a.innerHTML = `
+          <span style="display:inline-block;width:18px;margin-left:-22px;margin-right:4px;vertical-align:middle;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 2a6 6 0 1 1-6 6" stroke="#43A047" stroke-width="1.5" fill="none"/>
+              <path d="M2 2v4h4" stroke="#43A047" stroke-width="1.5" fill="none"/>
+            </svg>
+          </span>
+          Synchronize`;
+        a.style.display = 'flex';
+        a.style.alignItems = 'center';
+        a.style.fontSize = '13px';
+        a.style.color = '#333';
         a.onclick = function(e) {
           e.preventDefault();
           e.stopPropagation();
@@ -48,110 +68,78 @@ function addCustomContextMenuItems() {
         li.appendChild(a);
         ul.appendChild(li);
       }
-      // Migrate time (Redmine style, có menu con, LUÔN ở cuối)
-      if (!ul.querySelector('.my-plugin-migrate-folder')) {
+      // Move to date (Redmine style, không có submenu, đặt trên Move Forward)
+      if (!ul.querySelector('.my-plugin-move-to-date-item')) {
         const li = document.createElement('li');
-        li.className = 'folder my-plugin-migrate-folder';
+        li.className = 'my-plugin-move-to-date-item';
         const a = document.createElement('a');
         a.href = '#';
-        a.className = 'submenu my-plugin-custom-icon';
-        a.innerHTML = '<span class="my-plugin-emoji-icon">⏱️</span> Migrate time';
-        const migrateUl = document.createElement('ul');
-        migrateUl.style.minWidth = '160px';
-        // Helper tạo menu con style Redmine, menu tầng 3 style riêng
-        function addSubMenuCustomPopup(parentUl, text, options, isLeaf) {
-          const subLi = document.createElement('li');
-          subLi.className = 'folder';
-          let subA;
-          if (isLeaf) {
-            subA = document.createElement('a');
-            subA.href = '#';
-            subA.textContent = text;
-            subA.onclick = function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-              const ticketId = getTicketIdFromMenu(menu);
-              alert(`${text} (Ticket #${ticketId})`);
-              menu.style.display = 'none';
-            };
-          } else {
-            subA = document.createElement('a');
-            subA.href = '#';
-            subA.className = 'submenu';
-            subA.textContent = text;
-            // Tạo popup menu tầng 3 style riêng
-            let popup = null;
-            let popupHover = false;
-            subLi.onmouseenter = function(e) {
-              if (popup) return;
-              popup = document.createElement('div');
-              popup.className = 'my-plugin-popup-menu3';
-              popup.style.position = 'fixed';
-              const rect = subA.getBoundingClientRect();
-              popup.style.top = rect.top + 'px';
-              popup.style.left = (rect.right + 2) + 'px';
-              popup.style.minWidth = '140px';
-              popup.style.background = '#fff';
-              popup.style.border = '1px solid #ccc';
-              popup.style.boxShadow = '2px 2px 6px rgba(0,0,0,0.12)';
-              popup.style.padding = '2px 0';
-              popup.style.zIndex = 10001;
-              options.forEach(opt => {
-                const item = document.createElement('div');
-                item.className = 'my-plugin-popup-menu3-item';
-                item.textContent = opt.label;
-                item.style.padding = '6px 18px';
-                item.style.cursor = 'pointer';
-                item.style.fontSize = '13px';
-                item.style.color = '#333';
-                item.onmouseenter = () => item.style.background = '#e6f0fa';
-                item.onmouseleave = () => item.style.background = '';
-                item.onclick = (ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  const ticketId = getTicketIdFromMenu(menu);
-                  alert(`${text} - ${opt.label} (Ticket #${ticketId})`);
-                  menu.style.display = 'none';
-                  if (popup) popup.remove();
-                };
-                popup.appendChild(item);
-              });
-              // Theo dõi hover trên popup
-              popup.addEventListener('mouseenter', () => { popupHover = true; });
-              popup.addEventListener('mouseleave', () => {
-                popupHover = false;
-                setTimeout(() => {
-                  if (!popupHover && !subLi.matches(':hover')) {
-                    if (popup) popup.remove();
-                    popup = null;
-                  }
-                }, 80);
-              });
-              document.body.appendChild(popup);
-            };
-            subLi.addEventListener('mouseleave', () => {
-              setTimeout(() => {
-                if (!popupHover && !subLi.matches(':hover')) {
-                  if (popup) popup.remove();
-                  popup = null;
-                }
-              }, 80);
-            });
-          }
-          subLi.appendChild(subA);
-          parentUl.appendChild(subLi);
-        }
-        addSubMenuCustomPopup(migrateUl, 'Move forward', [
-          { label: '1 day' }, { label: '2 days' }, { label: '3 days' }, { label: '4 days' }, { label: '5 days' }
-        ], false);
-        addSubMenuCustomPopup(migrateUl, 'Move backward', [
-          { label: '1 day' }, { label: '2 days' }, { label: '3 days' }, { label: '4 days' }, { label: '5 days' }
-        ], false);
-        addSubMenuCustomPopup(migrateUl, 'Change Ticket Date', [], true);
+        a.textContent = 'Move to date';
+        a.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const ticketId = getTicketIdFromMenu(menu);
+          alert(`Move to date (Ticket #${ticketId})`);
+          menu.style.display = 'none';
+        };
         li.appendChild(a);
-        li.appendChild(migrateUl);
         ul.appendChild(li);
-        ul.appendChild(li); // Đảm bảo luôn ở cuối
+      }
+      // Move Forward (Redmine style, có submenu 1-5 days)
+      if (!ul.querySelector('.my-plugin-move-forward-folder')) {
+        const li = document.createElement('li');
+        li.className = 'folder my-plugin-move-forward-folder';
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'submenu';
+        a.textContent = 'Move Forward';
+        const subUl = document.createElement('ul');
+        [1,2,3,4,5].forEach(d => {
+          const subLi = document.createElement('li');
+          const subA = document.createElement('a');
+          subA.href = '#';
+          subA.textContent = d + (d === 1 ? ' day' : ' days');
+          subA.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ticketId = getTicketIdFromMenu(menu);
+            alert(`Move Forward - ${d} day(s) (Ticket #${ticketId})`);
+            menu.style.display = 'none';
+          };
+          subLi.appendChild(subA);
+          subUl.appendChild(subLi);
+        });
+        li.appendChild(a);
+        li.appendChild(subUl);
+        ul.appendChild(li);
+      }
+      // Move Backward (Redmine style, có submenu 1-5 days)
+      if (!ul.querySelector('.my-plugin-move-backward-folder')) {
+        const li = document.createElement('li');
+        li.className = 'folder my-plugin-move-backward-folder';
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'submenu';
+        a.textContent = 'Move Backward';
+        const subUl = document.createElement('ul');
+        [1,2,3,4,5].forEach(d => {
+          const subLi = document.createElement('li');
+          const subA = document.createElement('a');
+          subA.href = '#';
+          subA.textContent = d + (d === 1 ? ' day' : ' days');
+          subA.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ticketId = getTicketIdFromMenu(menu);
+            alert(`Move Backward - ${d} day(s) (Ticket #${ticketId})`);
+            menu.style.display = 'none';
+          };
+          subLi.appendChild(subA);
+          subUl.appendChild(subLi);
+        });
+        li.appendChild(a);
+        li.appendChild(subUl);
+        ul.appendChild(li);
       }
     }
   }
@@ -207,86 +195,11 @@ function openMultiTask(ticketId) {
   });
 }
 
-function createMigrateSubMenu(menu, ticketId, parentLi) {
-  // Xóa submenu cũ nếu có trong parentLi
-  parentLi.querySelectorAll('.my-plugin-migrate-submenu').forEach(e => e.remove());
-  // Tạo submenu chính
-  const submenu = document.createElement('ul');
-  submenu.className = 'my-plugin-migrate-submenu';
-  submenu.style.position = 'absolute';
-  submenu.style.top = '0';
-  submenu.style.left = '100%';
-  submenu.style.minWidth = parentLi.offsetWidth + 'px';
-  submenu.style.zIndex = 9999;
-  submenu.style.background = '#fff';
-  submenu.style.border = '1px solid #ccc';
-  submenu.style.boxShadow = '2px 2px 6px rgba(0,0,0,0.08)';
-  submenu.style.padding = '2px 0';
-  submenu.style.listStyle = 'none';
-
-  // Helper tạo li có submenu
-  function createLiWithSub(text, subOptions) {
-    const li = document.createElement('li');
-    li.className = 'my-plugin-migrate-parent';
-    li.style.position = 'relative';
-    li.style.cursor = 'pointer';
-    li.innerHTML = `<span>${text} <span style=\"float:right\">▶</span></span>`;
-    // Tạo submenu con
-    const subUl = document.createElement('ul');
-    subUl.className = 'my-plugin-migrate-submenu2';
-    subUl.style.position = 'absolute';
-    subUl.style.top = '0';
-    subUl.style.left = '100%';
-    subUl.style.minWidth = '120px';
-    subUl.style.background = '#fff';
-    subUl.style.border = '1px solid #ccc';
-    subUl.style.boxShadow = '2px 2px 6px rgba(0,0,0,0.08)';
-    subUl.style.padding = '2px 0';
-    subUl.style.display = 'none';
-    subUl.style.listStyle = 'none';
-    subOptions.forEach(opt => {
-      const subLi = document.createElement('li');
-      subLi.className = 'my-plugin-migrate-leaf';
-      subLi.style.cursor = 'pointer';
-      subLi.style.padding = '4px 16px 4px 16px';
-      subLi.textContent = opt.label;
-      subLi.onmouseenter = () => subLi.style.background = '#e6f0fa';
-      subLi.onmouseleave = () => subLi.style.background = '';
-      subLi.onclick = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        alert(`${text} - ${opt.label} (Ticket #${ticketId})`);
-        submenu.remove();
-        menu.style.display = 'none';
-      };
-      subUl.appendChild(subLi);
-    });
-    li.appendChild(subUl);
-    li.onmouseenter = () => { subUl.style.display = 'block'; li.style.background = '#e6f0fa'; };
-    li.onmouseleave = () => { subUl.style.display = 'none'; li.style.background = ''; };
-    return li;
-  }
-  // Move forward
-  submenu.appendChild(createLiWithSub('Move forward', [
-    { label: '1 day' }, { label: '2 days' }, { label: '3 days' }, { label: '4 days' }, { label: '5 days' }
-  ]));
-  // Move backward
-  submenu.appendChild(createLiWithSub('Move backward', [
-    { label: '1 day' }, { label: '2 days' }, { label: '3 days' }, { label: '4 days' }, { label: '5 days' }
-  ]));
-  // Change Ticket Date
-  submenu.appendChild(createLiWithSub('Change Ticket Date', [
-    { label: 'Change to specific day' }, { label: 'Change by days' }
-  ]));
-  parentLi.appendChild(submenu);
-}
-
 // Thêm style cho menu plugin để icon và text căn trái đồng bộ
 (function injectPluginMenuStyle() {
   const style = document.createElement('style');
   style.textContent = `
     #context-menu .my-plugin-create-subtasks a,
-    #context-menu .my-plugin-migrate-time a,
     #context-menu .my-plugin-synchronize a {
       display: flex;
       align-items: center;
@@ -299,13 +212,6 @@ function createMigrateSubMenu(menu, ticketId, parentLi) {
     }
     #context-menu .my-plugin-create-subtasks a::before {
       content: "\\1F4DD"; /* 📝 */
-      display: inline-block;
-      width: 18px;
-      margin-left: -22px;
-      margin-right: 4px;
-    }
-    #context-menu .my-plugin-migrate-time a::before {
-      content: "\\23F1"; /* ⏱ */
       display: inline-block;
       width: 18px;
       margin-left: -22px;
