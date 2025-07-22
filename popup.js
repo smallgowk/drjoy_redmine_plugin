@@ -31,8 +31,79 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (synchroButton) {
-        synchroButton.addEventListener('click', function() {
-            // Not implemented yet
+        synchroButton.addEventListener('click', async function () {
+            try {
+                // 1. Validate current tab URL
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                const url = tab.url;
+                const match = url.match(/^https:\/\/redmine\.famishare\.jp\/issues\/(\d+)/);
+                if (!match) {
+                    alert('Invalid ticket link. Please open a valid Redmine issue URL.');
+                    return;
+                }
+                const issueId = match[1];
+                // 2. Get API key from storage
+                const apiKey = await new Promise((resolve) => {
+                    chrome.storage.local.get(['redmineApiKey'], (result) => {
+                        resolve(result.redmineApiKey);
+                    });
+                });
+                if (!apiKey) {
+                    alert('Please save your Redmine API Key first.');
+                    return;
+                }
+                // 3. Get parent chain (to root)
+                const parentIds = [];
+                let currentId = issueId;
+                let rootIssue = null;
+                while (true) {
+                    const res = await fetch(`https://redmine.famishare.jp/issues/${currentId}.json`, {
+                        headers: { 'X-Redmine-API-Key': apiKey }
+                    });
+                    if (!res.ok) {
+                        alert('Failed to fetch issue data.');
+                        return;
+                    }
+                    const data = await res.json();
+                    if (data.issue.parent && data.issue.parent.id) {
+                        parentIds.push(data.issue.parent.id);
+                        currentId = data.issue.parent.id;
+                    } else {
+                        rootIssue = data.issue;
+                        break;
+                    }
+                }
+                // 4. Build issue tree (root + 2 child levels)
+                async function fetchChildren(parentId) {
+                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}`, {
+                        headers: { 'X-Redmine-API-Key': apiKey }
+                    });
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return data.issues || [];
+                }
+                async function buildTree(issue, depth) {
+                    if (depth === 0) return issue;
+                    const children = await fetchChildren(issue.id);
+                    issue.children = [];
+                    for (const child of children) {
+                        const childDetailRes = await fetch(`https://redmine.famishare.jp/issues/${child.id}.json`, {
+                            headers: { 'X-Redmine-API-Key': apiKey }
+                        });
+                        const childDetail = childDetailRes.ok ? (await childDetailRes.json()).issue : child;
+                        const childTree = await buildTree(childDetail, depth - 1);
+                        issue.children.push(childTree);
+                    }
+                    return issue;
+                }
+                const issueTree = await buildTree(rootIssue, 2);
+                console.log('Parent chain:', parentIds);
+                console.log('Issue tree:', issueTree);
+                alert('Issue tree fetched. Check the console for details.');
+            } catch (e) {
+                console.error(e);
+                alert('An error occurred. See console for details.');
+            }
         });
     }
 
@@ -62,13 +133,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Global Redmine API Key (cố định, dễ thay đổi)
-const REDMINE_API_KEY = '4d91a17281092c5f955cb51a9e2a70f021479901';
-
+// Đảm bảo không có key Redmine mặc định hoặc hardcode
+// Người dùng phải nhập API key của họ và lưu vào chrome.storage.local với key 'redmineApiKey'
 function openMultiTaskTab(issueId) {
     // Ưu tiên dùng API key người dùng nhập, nếu không có thì dùng mặc định
     const userKey = localStorage.getItem('redmineApiKey');
-    const apiKey = userKey && userKey.trim() ? userKey.trim() : REDMINE_API_KEY;
+    const apiKey = userKey && userKey.trim() ? userKey.trim() : null; // Không có key mặc định
+    if (!apiKey) {
+        alert('Please save your Redmine API Key first.');
+        return;
+    }
     // Mở tab mới với query string truyền apiKey
     const extensionUrl = chrome.runtime.getURL('multi-task.html');
     const url = `${extensionUrl}?issueId=${encodeURIComponent(issueId)}&apiKey=${encodeURIComponent(apiKey)}`;
