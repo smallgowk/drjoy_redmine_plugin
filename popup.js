@@ -6,12 +6,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
     if (apiKeyInput && saveApiKeyBtn) {
         // Load API key nếu đã lưu
-        const savedKey = localStorage.getItem('redmineApiKey');
-        if (savedKey) apiKeyInput.value = savedKey;
+        chrome.storage.local.get(['redmineApiKey'], (result) => {
+            if (result.redmineApiKey) apiKeyInput.value = result.redmineApiKey;
+        });
         saveApiKeyBtn.addEventListener('click', function() {
-            localStorage.setItem('redmineApiKey', apiKeyInput.value.trim());
-            saveApiKeyBtn.textContent = 'Saved!';
-            setTimeout(() => { saveApiKeyBtn.textContent = 'Save'; }, 1200);
+            const key = apiKeyInput.value.trim();
+            chrome.storage.local.set({ redmineApiKey: key }, () => {
+                saveApiKeyBtn.textContent = 'Saved!';
+                setTimeout(() => { saveApiKeyBtn.textContent = 'Save'; }, 1200);
+            });
         });
     }
 
@@ -30,80 +33,72 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Hàm set trạng thái đồng bộ UI
+    function setSyncUI(isSync) {
+        if (saveApiKeyBtn) saveApiKeyBtn.disabled = isSync;
+        if (gantChartButton) gantChartButton.disabled = isSync;
+        if (synchroButton) {
+            synchroButton.disabled = isSync;
+            synchroButton.textContent = isSync ? 'Synchronizing...' : 'Synchronize';
+        }
+        if (createMultiTaskButton) createMultiTaskButton.disabled = isSync;
+    }
+
+    // Khi load popup, kiểm tra trạng thái synchronizing
+    function watchSyncStatus() {
+        chrome.storage.local.get(['isSynchronizing'], (result) => {
+            if (result.isSynchronizing) {
+                setSyncUI(true);
+                setTimeout(watchSyncStatus, 1000);
+            } else {
+                setSyncUI(false);
+                // Nếu trước đó đã từng gửi đồng bộ thì hiện alert hoàn thành
+                chrome.storage.local.get(['syncJustFinished'], (r) => {
+                    if (r.syncJustFinished) {
+                        alert('Auto-update status for all issues with children completed!');
+                        chrome.storage.local.set({ syncJustFinished: false });
+                    }
+                });
+            }
+        });
+    }
+    watchSyncStatus();
+
     if (synchroButton) {
         synchroButton.addEventListener('click', async function () {
-            try {
-                // 1. Validate current tab URL
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                const url = tab.url;
-                const match = url.match(/^https:\/\/redmine\.famishare\.jp\/issues\/(\d+)/);
-                if (!match) {
-                    alert('Invalid ticket link. Please open a valid Redmine issue URL.');
-                    return;
-                }
-                const issueId = match[1];
-                // 2. Get API key from storage
-                const apiKey = await new Promise((resolve) => {
-                    chrome.storage.local.get(['redmineApiKey'], (result) => {
-                        resolve(result.redmineApiKey);
-                    });
-                });
-                if (!apiKey) {
-                    alert('Please save your Redmine API Key first.');
-                    return;
-                }
-                // 3. Get parent chain (to root)
-                const parentIds = [];
-                let currentId = issueId;
-                let rootIssue = null;
-                while (true) {
-                    const res = await fetch(`https://redmine.famishare.jp/issues/${currentId}.json`, {
-                        headers: { 'X-Redmine-API-Key': apiKey }
-                    });
-                    if (!res.ok) {
-                        alert('Failed to fetch issue data.');
-                        return;
-                    }
-                    const data = await res.json();
-                    if (data.issue.parent && data.issue.parent.id) {
-                        parentIds.push(data.issue.parent.id);
-                        currentId = data.issue.parent.id;
-                    } else {
-                        rootIssue = data.issue;
-                        break;
-                    }
-                }
-                // 4. Build issue tree (root + 2 child levels)
-                async function fetchChildren(parentId) {
-                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}`, {
-                        headers: { 'X-Redmine-API-Key': apiKey }
-                    });
-                    if (!res.ok) return [];
-                    const data = await res.json();
-                    return data.issues || [];
-                }
-                async function buildTree(issue, depth) {
-                    if (depth === 0) return issue;
-                    const children = await fetchChildren(issue.id);
-                    issue.children = [];
-                    for (const child of children) {
-                        const childDetailRes = await fetch(`https://redmine.famishare.jp/issues/${child.id}.json`, {
-                            headers: { 'X-Redmine-API-Key': apiKey }
-                        });
-                        const childDetail = childDetailRes.ok ? (await childDetailRes.json()).issue : child;
-                        const childTree = await buildTree(childDetail, depth - 1);
-                        issue.children.push(childTree);
-                    }
-                    return issue;
-                }
-                const issueTree = await buildTree(rootIssue, 2);
-                console.log('Parent chain:', parentIds);
-                console.log('Issue tree:', issueTree);
-                alert('Issue tree fetched. Check the console for details.');
-            } catch (e) {
-                console.error(e);
-                alert('An error occurred. See console for details.');
+            // Lấy issueId từ tab hiện tại
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            const url = tab.url;
+            const match = url.match(/^https:\/\/redmine\.famishare\.jp\/issues\/(\d+)/);
+            if (!match) {
+                alert('Invalid ticket link. Please open a valid Redmine issue URL.');
+                return;
             }
+            const issueId = match[1];
+            // Lấy API key
+            const apiKey = await new Promise((resolve) => {
+                chrome.storage.local.get(['redmineApiKey'], (result) => {
+                    resolve(result.redmineApiKey);
+                });
+            });
+            if (!apiKey) {
+                alert('Please save your Redmine API Key first.');
+                return;
+            }
+            // Đặt trạng thái synchronizing vào storage và UI
+            chrome.storage.local.set({ isSynchronizing: true, syncJustFinished: false });
+            setSyncUI(true);
+            // Gửi message sang background để thực hiện đồng bộ
+            chrome.runtime.sendMessage({ type: 'START_SYNCHRONIZE', issueId, apiKey }, (response) => {
+                // Khi background trả về (hoặc có lỗi), sẽ reset trạng thái
+                chrome.storage.local.set({ isSynchronizing: false, syncJustFinished: true });
+                setSyncUI(false);
+                if (response && !response.ok) {
+                    alert('Synchronize failed: ' + (response.error || 'Unknown error'));
+                } else {
+                    alert('Auto-update status for all issues with children completed!');
+                }
+            });
         });
     }
 
