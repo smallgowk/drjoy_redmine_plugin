@@ -296,5 +296,75 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return true;
     }
+    // Lắng nghe message để refresh tất cả tab Redmine
+    if (message.type === 'REFRESH_ALL_REDMINE_PAGES') {
+        console.log('BG: Received REFRESH_ALL_REDMINE_PAGES for issue:', message.issueId);
+        
+        // Tìm tất cả tab chứa Redmine
+        chrome.tabs.query({url: "*://redmine.famishare.jp/*"}, function(tabs) {
+            console.log('BG: Found Redmine tabs:', tabs.length, tabs.map(t => ({id: t.id, url: t.url})));
+            
+            if (tabs.length > 0) {
+                let refreshedCount = 0;
+                let errorCount = 0;
+                
+                // Refresh từng tab một cách tuần tự để tránh lỗi
+                tabs.forEach((tab, index) => {
+                    setTimeout(() => {
+                        // Phương pháp 1: Sử dụng chrome.tabs.reload
+                        chrome.tabs.reload(tab.id, {}, (result) => {
+                            if (chrome.runtime.lastError) {
+                                console.error('BG: Error refreshing tab', tab.id, chrome.runtime.lastError);
+                                // Phương pháp 2: Thử chrome.tabs.update
+                                chrome.tabs.update(tab.id, {url: tab.url}, (updateResult) => {
+                                    if (chrome.runtime.lastError) {
+                                        console.error('BG: Error updating tab', tab.id, chrome.runtime.lastError);
+                                        errorCount++;
+                                    } else {
+                                        console.log('BG: Successfully updated tab:', tab.id);
+                                        refreshedCount++;
+                                    }
+                                    checkCompletion();
+                                });
+                            } else {
+                                console.log('BG: Successfully refreshed tab:', tab.id);
+                                refreshedCount++;
+                                checkCompletion();
+                            }
+                        });
+                        
+                        function checkCompletion() {
+                            // Kiểm tra nếu đã refresh xong tất cả
+                            if (refreshedCount + errorCount === tabs.length) {
+                                console.log(`BG: Completed refreshing. Success: ${refreshedCount}, Errors: ${errorCount}`);
+                                sendResponse({
+                                    ok: refreshedCount > 0, 
+                                    refreshedTabs: refreshedCount, 
+                                    errorTabs: errorCount,
+                                    totalTabs: tabs.length,
+                                    tabIds: tabs.map(t => t.id)
+                                });
+                                
+                                // Gửi message đến tất cả content script để refresh
+                                tabs.forEach(tab => {
+                                    chrome.tabs.sendMessage(tab.id, {type: 'REFRESH_PAGE'}, (response) => {
+                                        if (chrome.runtime.lastError) {
+                                            console.log('BG: Could not send message to tab', tab.id, chrome.runtime.lastError);
+                                        } else {
+                                            console.log('BG: Sent refresh message to tab', tab.id);
+                                        }
+                                    });
+                                });
+                            }
+                        }
+                    }, index * 100); // Delay 100ms giữa mỗi tab để tránh quá tải
+                });
+            } else {
+                console.log('BG: No Redmine tabs found');
+                sendResponse({ok: false, error: 'No Redmine tabs found'});
+            }
+        });
+        return true;
+    }
     return false;
 });

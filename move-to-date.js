@@ -317,13 +317,14 @@ async function executeMove() {
                     issueId: issueId 
                 });
                 
-                // Phương pháp 2: Gửi message đến background script
+                // Phương pháp 2: Gửi message đến background script để reload tất cả tab Redmine
                 chrome.runtime.sendMessage({
-                    type: 'REFRESH_PAGE_FROM_POPUP',
+                    type: 'REFRESH_ALL_REDMINE_PAGES',
                     issueId: issueId
                 }, (response) => {
                     console.log('Refresh response:', response);
                     if (response && response.ok) {
+                        console.log(`Refreshed ${response.refreshedTabs} Redmine tabs`);
                         // Đóng popup sau khi refresh thành công
                         setTimeout(() => {
                             closeWindow();
@@ -415,14 +416,14 @@ function closeWithRefresh() {
     // Thử refresh trước khi đóng
     let refreshAttempted = false;
     
-    // Phương pháp 1: Gửi message đến background script
+    // Phương pháp 1: Gửi message đến background script để reload tất cả tab Redmine
     chrome.runtime.sendMessage({
-        type: 'REFRESH_PAGE_FROM_POPUP',
+        type: 'REFRESH_ALL_REDMINE_PAGES',
         issueId: issueId
     }, (response) => {
         console.log('Close refresh response:', response);
         if (response && response.ok) {
-            console.log('Refresh successful via background, closing popup');
+            console.log(`Refreshed ${response.refreshedTabs} Redmine tabs via background, closing popup`);
             closeWindow();
         } else {
             // Nếu background refresh thất bại, thử phương pháp khác
