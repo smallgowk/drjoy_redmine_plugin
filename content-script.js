@@ -171,9 +171,15 @@ function sendSynchronize(ticketId) {
       alert('Please save your Redmine API Key first in extension popup.');
       return;
     }
+    
+    // Hiển thị loading state
+    showLoadingState('Synchronizing issues...');
+    
     chrome.storage.local.set({ isSynchronizing: true, syncJustFinished: false });
     chrome.runtime.sendMessage({ type: 'START_SYNCHRONIZE', issueId: ticketId, apiKey }, response => {
       chrome.storage.local.set({ isSynchronizing: false, syncJustFinished: true });
+      hideLoadingState();
+      
       if (response && !response.ok) {
         alert('Synchronize failed: ' + (response.error || 'Unknown error'));
       } else {
@@ -214,9 +220,8 @@ function moveIssueDates(ticketId, days) {
       return;
     }
     
-    // Hiển thị loading message
-    const loadingMsg = `Moving issue #${ticketId} and children ${absDays} working day(s) ${direction}...`;
-    console.log(loadingMsg);
+    // Hiển thị loading state
+    showLoadingState(`Moving issues ${absDays} working day(s) ${direction}...`);
     
     chrome.runtime.sendMessage({ 
       type: 'MOVE_ISSUE_DATES', 
@@ -224,6 +229,8 @@ function moveIssueDates(ticketId, days) {
       days: days, 
       apiKey: apiKey 
     }, response => {
+      hideLoadingState();
+      
       if (response && response.ok) {
         const { summary } = response;
         const successMsg = `Successfully moved ${summary.success} out of ${summary.total} issues ${absDays} working day(s) ${direction}.`;
@@ -429,4 +436,88 @@ setInterval(() => {
       }
     }
   });
-}, 1000); // Kiểm tra mỗi giây 
+}, 1000); // Kiểm tra mỗi giây
+
+// Hiển thị loading state
+function showLoadingState(message) {
+  // Tạo loading overlay nếu chưa có
+  let loadingOverlay = document.getElementById('drjoy-loading-overlay');
+  if (!loadingOverlay) {
+    loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'drjoy-loading-overlay';
+    loadingOverlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: Arial, sans-serif;
+    `;
+    
+    const loadingContent = document.createElement('div');
+    loadingContent.style.cssText = `
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      min-width: 300px;
+    `;
+    
+    const spinner = document.createElement('div');
+    spinner.style.cssText = `
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e3e3e3;
+      border-top: 4px solid #2196F3;
+      border-radius: 50%;
+      animation: drjoy-spin 1s linear infinite;
+      margin: 0 auto 15px auto;
+    `;
+    
+    const text = document.createElement('div');
+    text.id = 'drjoy-loading-text';
+    text.style.cssText = `
+      font-size: 16px;
+      color: #333;
+      font-weight: 500;
+    `;
+    
+    loadingContent.appendChild(spinner);
+    loadingContent.appendChild(text);
+    loadingOverlay.appendChild(loadingContent);
+    
+    // Thêm CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes drjoy-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(loadingOverlay);
+  }
+  
+  // Cập nhật message
+  const textElement = document.getElementById('drjoy-loading-text');
+  if (textElement) {
+    textElement.textContent = message;
+  }
+  
+  loadingOverlay.style.display = 'flex';
+}
+
+// Ẩn loading state
+function hideLoadingState() {
+  const loadingOverlay = document.getElementById('drjoy-loading-overlay');
+  if (loadingOverlay) {
+    loadingOverlay.style.display = 'none';
+  }
+} 

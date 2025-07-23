@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load thông tin issue và children
 async function loadIssueInformation() {
     try {
-        showLoading(true);
+        showLoading(true, 'Loading issue information...');
         
         // Lấy thông tin issue chính
         const mainIssue = await getIssueDetail(issueId);
@@ -273,7 +273,7 @@ async function executeMove() {
     hideConfirmDialog();
     
     try {
-        showLoading(true);
+        showLoading(true, 'Moving issues...');
         
         // Gửi message đến background script
         const response = await new Promise((resolve) => {
@@ -452,12 +452,14 @@ function closeWithRefresh() {
 }
 
 // Hiển thị/ẩn loading
-function showLoading(show) {
+function showLoading(show, message = 'Processing...') {
     const loadingElement = document.getElementById('loading');
+    const loadingText = document.querySelector('.loading-text');
     const moveBtn = document.getElementById('move-btn');
     const cancelBtn = document.getElementById('cancel-btn');
     
     if (show) {
+        loadingText.textContent = message;
         loadingElement.style.display = 'block';
         moveBtn.disabled = true;
         cancelBtn.disabled = true;

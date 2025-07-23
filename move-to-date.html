@@ -72,6 +72,28 @@
             text-align: center;
             color: #666;
             font-style: italic;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .loading-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #e3e3e3;
+            border-top: 3px solid #2196F3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px auto;
+        }
+        .loading-text {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         .error {
             color: #d32f2f;
@@ -186,7 +208,8 @@
         </div>
         
         <div id="loading" class="loading" style="display: none;">
-            Moving issues...
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Processing...</div>
         </div>
     </div>
 
