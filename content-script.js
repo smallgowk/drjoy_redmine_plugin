@@ -79,8 +79,7 @@ function addCustomContextMenuItems() {
           e.preventDefault();
           e.stopPropagation();
           const ticketId = getTicketIdFromMenu(menu);
-          // TODO: Implement custom date picker for move to specific date
-          alert(`Move to date feature will be implemented soon (Ticket #${ticketId})`);
+          openMoveToDate(ticketId);
           menu.style.display = 'none';
         };
         li.appendChild(a);
@@ -235,6 +234,18 @@ function moveIssueDates(ticketId, days) {
         console.error('Move dates failed:', response);
       }
     });
+  });
+}
+
+function openMoveToDate(ticketId) {
+  getApiKey().then(apiKey => {
+    if (!apiKey) {
+      alert('Please save your Redmine API Key first in extension popup.');
+      return;
+    }
+    const extensionUrl = chrome.runtime.getURL('move-to-date.html');
+    const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
+    window.open(url, '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
   });
 }
 

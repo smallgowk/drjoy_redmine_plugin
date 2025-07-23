@@ -21,7 +21,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["multi-task.html"],
+      "resources": ["multi-task.html", "move-to-date.html"],
       "matches": ["<all_urls>"]
     }
   ],
