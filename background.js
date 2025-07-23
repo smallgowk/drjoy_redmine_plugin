@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
                 // 2. Build issue tree (3 lớp)
                 async function fetchChildren(parentId) {
-                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}`, {
+                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}&status_id=*`, {
                         headers: { 'X-Redmine-API-Key': apiKey }
                     });
                     if (!res.ok) return [];
@@ -106,18 +106,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     });
                     return res.ok;
                 }
-                async function processNode(node) {
-                    if (!node.children || node.children.length === 0) return;
-                    if (allChildrenClosed(node.children) && node.status && node.status.id !== 5) {
-                        await updateIssueStatus(node, 5);
-                    } else if (anyChildNotNew(node.children) && node.status && node.status.id === 1) {
-                        await updateIssueStatus(node, 2, 20);
-                    }
-                    for (const child of node.children) {
-                        await processNode(child);
+                // Thay thế processNode bằng post-order traversal
+                async function processNodePostOrder(node) {
+                    if (node.children && node.children.length > 0) {
+                        for (const child of node.children) {
+                            await processNodePostOrder(child);
+                        }
+                        // Log toàn bộ child và status của node hiện tại
+                        console.log('BG: Node', node.id, 'children:', node.children.map(c => ({id: c.id, status: c.status ? c.status : null})));
+                        // Sau khi đã cập nhật hết children, mới xét node hiện tại
+                        const childrenStatuses = node.children.map(c => c.status ? c.status.id : null);
+                        if (childrenStatuses.every(s => s === 5) && node.status && node.status.id !== 5) {
+                            console.log('BG: All children closed, updating node', node.id, 'to status 5');
+                            await updateIssueStatus(node, 5);
+                            node.status.id = 5; // Cập nhật local để cha trên biết
+                        } else if (childrenStatuses.some(s => s !== 1) && node.status && node.status.id === 1) {
+                            console.log('BG: Some child not new, updating node', node.id, 'to status 2');
+                            await updateIssueStatus(node, 2, 20);
+                            node.status.id = 2; // Cập nhật local để cha trên biết
+                        } else {
+                            console.log('BG: Node', node.id, 'does not meet any update condition');
+                        }
+                    } else {
+                        console.log('BG: Node', node.id, 'has no children, skip');
                     }
                 }
-                await processNode(issueTree);
+                await processNodePostOrder(issueTree);
                 await chrome.storage.local.set({ isSynchronizing: false });
                 sendResponse({ ok: true });
             } catch (e) {
@@ -146,7 +160,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 
                 // Hàm lấy tất cả issue con (recursive)
                 async function getAllChildren(parentId) {
-                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}`, {
+                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}&status_id=*`, {
                         headers: { 'X-Redmine-API-Key': apiKey }
                     });
                     if (!res.ok) return [];

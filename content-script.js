@@ -176,49 +176,45 @@ async function getApiKey() {
 }
 
 function sendSynchronize(ticketId) {
+  console.log('[SYNC] sendSynchronize called with ticketId:', ticketId);
   getApiKey().then(apiKey => {
+    console.log('[SYNC] API Key:', apiKey);
     if (!apiKey) {
       alert('Please save your Redmine API Key first in extension popup.');
       return;
     }
-    
-    // Hiển thị loading state
     showLoadingState('Synchronizing issues...');
-    
     try {
       chrome.storage.local.set({ isSynchronizing: true, syncJustFinished: false }, () => {
         if (chrome.runtime.lastError) {
-          console.log('Storage set error in sendSynchronize:', chrome.runtime.lastError);
+          console.log('[SYNC] Storage set error in sendSynchronize:', chrome.runtime.lastError);
         }
       });
-      
       chrome.runtime.sendMessage({ type: 'START_SYNCHRONIZE', issueId: ticketId, apiKey }, response => {
         try {
+          console.log('[SYNC] Response from background:', response);
           chrome.storage.local.set({ isSynchronizing: false, syncJustFinished: true }, () => {
             if (chrome.runtime.lastError) {
-              console.log('Storage set error in sendSynchronize response:', chrome.runtime.lastError);
+              console.log('[SYNC] Storage set error in sendSynchronize response:', chrome.runtime.lastError);
             }
           });
           hideLoadingState();
-          
           if (response && !response.ok) {
             alert('Synchronize failed: ' + (response.error || 'Unknown error'));
           } else {
             alert('Auto-update status for all issues with children completed!\n\nPage will refresh automatically in 0.5 seconds.');
-            
-            // Refresh page sau khi hoàn thành
             setTimeout(() => {
               location.reload();
             }, 500);
           }
         } catch (error) {
-          console.log('Extension context error in sendSynchronize response:', error);
+          console.log('[SYNC] Extension context error in sendSynchronize response:', error);
           hideLoadingState();
           alert('Synchronize failed: Extension context error');
         }
       });
     } catch (error) {
-      console.log('Extension context error in sendSynchronize:', error);
+      console.log('[SYNC] Extension context error in sendSynchronize:', error);
       hideLoadingState();
       alert('Synchronize failed: Extension context error');
     }
