@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bind events
     document.getElementById('cancel-btn').addEventListener('click', closeWindow);
     document.getElementById('move-btn').addEventListener('click', moveToDate);
-    document.getElementById('close-btn').addEventListener('click', closeWindow);
+    document.getElementById('close-btn').addEventListener('click', closeWithRefresh);
     document.getElementById('confirm-cancel-btn').addEventListener('click', hideConfirmDialog);
     document.getElementById('confirm-ok-btn').addEventListener('click', executeMove);
     document.getElementById('target-date').addEventListener('change', updateInfoMessage);
@@ -301,6 +301,57 @@ async function executeMove() {
             // Ẩn các element không cần thiết và hiển thị nút Close
             hideMoveElements();
             showCloseButton();
+            
+            // Hiển thị thông báo refresh
+            const successElement = document.getElementById('success-message');
+            successElement.innerHTML = successMsg + '<br><br><small style="color: #666;">Page will refresh automatically in 2 seconds...<br>Or click "Close" to refresh and close popup.</small>';
+            
+            // Refresh page sau 2 giây
+            setTimeout(() => {
+                console.log('Attempting to refresh page...');
+                
+                // Phương pháp 1: Lưu trạng thái để content script tự refresh
+                chrome.storage.local.set({ 
+                    shouldRefreshPage: true, 
+                    refreshTime: Date.now(),
+                    issueId: issueId 
+                });
+                
+                // Phương pháp 2: Gửi message đến background script
+                chrome.runtime.sendMessage({
+                    type: 'REFRESH_PAGE_FROM_POPUP',
+                    issueId: issueId
+                }, (response) => {
+                    console.log('Refresh response:', response);
+                    if (response && response.ok) {
+                        // Đóng popup sau khi refresh thành công
+                        setTimeout(() => {
+                            closeWindow();
+                        }, 1000);
+                    } else {
+                        // Nếu background refresh thất bại, thử phương pháp khác
+                        try {
+                            if (window.opener && !window.opener.closed) {
+                                window.opener.location.reload();
+                                console.log('Refreshed parent window via window.opener');
+                                setTimeout(() => {
+                                    closeWindow();
+                                }, 1000);
+                            } else {
+                                // Đóng popup sau 3 giây nếu không refresh được
+                                setTimeout(() => {
+                                    closeWindow();
+                                }, 3000);
+                            }
+                        } catch (error) {
+                            console.log('Error with window.opener:', error);
+                            setTimeout(() => {
+                                closeWindow();
+                            }, 3000);
+                        }
+                    }
+                });
+            }, 2000);
         } else {
             const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
             showError(`Failed to move dates: ${errorMsg}`);
@@ -355,6 +406,49 @@ function hideMoveElements() {
 // Hiển thị nút Close
 function showCloseButton() {
     document.getElementById('close-btn').style.display = 'block';
+}
+
+// Đóng popup với refresh
+function closeWithRefresh() {
+    console.log('Close button clicked, attempting to refresh...');
+    
+    // Thử refresh trước khi đóng
+    let refreshAttempted = false;
+    
+    // Phương pháp 1: Gửi message đến background script
+    chrome.runtime.sendMessage({
+        type: 'REFRESH_PAGE_FROM_POPUP',
+        issueId: issueId
+    }, (response) => {
+        console.log('Close refresh response:', response);
+        if (response && response.ok) {
+            console.log('Refresh successful via background, closing popup');
+            closeWindow();
+        } else {
+            // Nếu background refresh thất bại, thử phương pháp khác
+            try {
+                if (window.opener && !window.opener.closed) {
+                    window.opener.location.reload();
+                    console.log('Refresh successful via window.opener, closing popup');
+                    closeWindow();
+                } else {
+                    console.log('No refresh method available, closing popup anyway');
+                    closeWindow();
+                }
+            } catch (error) {
+                console.log('Error refreshing via window.opener:', error);
+                closeWindow();
+            }
+        }
+    });
+    
+    // Timeout fallback - đóng popup sau 3 giây nếu không có response
+    setTimeout(() => {
+        if (!refreshAttempted) {
+            console.log('Refresh timeout, closing popup');
+            closeWindow();
+        }
+    }, 3000);
 }
 
 // Hiển thị/ẩn loading

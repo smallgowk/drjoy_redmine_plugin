@@ -177,7 +177,12 @@ function sendSynchronize(ticketId) {
       if (response && !response.ok) {
         alert('Synchronize failed: ' + (response.error || 'Unknown error'));
       } else {
-        alert('Auto-update status for all issues with children completed!');
+        alert('Auto-update status for all issues with children completed!\n\nPage will refresh automatically in 1.5 seconds.');
+        
+        // Refresh page sau khi hoàn thành
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
       }
     });
   });
@@ -223,11 +228,16 @@ function moveIssueDates(ticketId, days) {
         const { summary } = response;
         const successMsg = `Successfully moved ${summary.success} out of ${summary.total} issues ${absDays} working day(s) ${direction}.`;
         if (summary.failed > 0) {
-          alert(`${successMsg}\n${summary.failed} issues failed to update.`);
+          alert(`${successMsg}\n${summary.failed} issues failed to update.\n\nPage will refresh automatically in 1.5 seconds.`);
         } else {
-          alert(successMsg);
+          alert(`${successMsg}\n\nPage will refresh automatically in 1.5 seconds.`);
         }
         console.log('Move dates completed:', response);
+        
+        // Refresh page sau khi hoàn thành
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
       } else {
         const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
         alert(`Failed to move dates: ${errorMsg}`);
@@ -396,4 +406,27 @@ function openMoveToDate(ticketId) {
 const observer = new MutationObserver(() => {
   addCustomContextMenuItems();
 });
-observer.observe(document.body, { childList: true, subtree: true }); 
+observer.observe(document.body, { childList: true, subtree: true });
+
+// Lắng nghe message từ background script để refresh page
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'REFRESH_PAGE') {
+    console.log('Content script: Refreshing page...');
+    location.reload();
+  }
+});
+
+// Kiểm tra storage để tự động refresh page
+setInterval(() => {
+  chrome.storage.local.get(['shouldRefreshPage', 'refreshTime', 'issueId'], (result) => {
+    if (result.shouldRefreshPage && result.refreshTime) {
+      const timeDiff = Date.now() - result.refreshTime;
+      // Chỉ refresh nếu thời gian chênh lệch < 10 giây (để tránh refresh liên tục)
+      if (timeDiff < 10000) {
+        console.log('Content script: Auto-refreshing page from storage...');
+        chrome.storage.local.remove(['shouldRefreshPage', 'refreshTime', 'issueId']);
+        location.reload();
+      }
+    }
+  });
+}, 1000); // Kiểm tra mỗi giây 

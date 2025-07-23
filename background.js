@@ -267,5 +267,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })();
         return true; // keep message channel open for async
     }
+    // Lắng nghe message để refresh page
+    if (message.type === 'REFRESH_PAGE') {
+        // Gửi message đến content script để refresh page
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, {type: 'REFRESH_PAGE'});
+            }
+        });
+        sendResponse({ok: true});
+        return true;
+    }
+    // Lắng nghe message từ popup để refresh page
+    if (message.type === 'REFRESH_PAGE_FROM_POPUP') {
+        console.log('BG: Received REFRESH_PAGE_FROM_POPUP for issue:', message.issueId);
+        
+        // Tìm tab chứa Redmine
+        chrome.tabs.query({url: "*://redmine.famishare.jp/*"}, function(tabs) {
+            if (tabs.length > 0) {
+                // Refresh tab đầu tiên tìm thấy
+                chrome.tabs.reload(tabs[0].id);
+                console.log('BG: Refreshed tab:', tabs[0].id);
+                sendResponse({ok: true, tabId: tabs[0].id});
+            } else {
+                console.log('BG: No Redmine tabs found');
+                sendResponse({ok: false, error: 'No Redmine tabs found'});
+            }
+        });
+        return true;
+    }
     return false;
 });
