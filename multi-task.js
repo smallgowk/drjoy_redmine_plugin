@@ -6,6 +6,7 @@
     }
     var parentIssueId = getParam('issueId');
     var apiKey = getParam('apiKey');
+    var parentIssueSubject = ''; // Biến lưu subject của parent issue
     document.getElementById('pageTitle').textContent = 'Create Multi Tasks (Parent Issue: #' + parentIssueId + ')';
     var prefixOptions = [
         'Coding','Review','Study','Selftest','Crosstest','Investigate','Research','Document','C_PR','Self-test','CreateTcs','ReviewTcs','ShareViewPoint','TestFruit','TestDev','TestStg','TestMaster','BugFruit','BugDev','BugStg'
@@ -23,17 +24,41 @@
             '<td class="col-date"><input type="date" class="start-date-input"></td>' +
             '<td class="col-date"><input type="date" class="end-date-input"></td>' +
             '<td class="col-estimate"><input type="number" class="estimate-input" placeholder="Hours" min="0" step="0.5"></td>' +
-            '<td class="col-action"><button class="remove-btn" onclick="removeRow(this)">Remove</button></td>';
+            '<td class="col-action"><button class="remove-btn" type="button">Remove</button></td>';
+        
+        // Thêm event listener cho nút remove
+        var removeBtn = row.querySelector('.remove-btn');
+        removeBtn.addEventListener('click', function() {
+            removeRow(this);
+        });
+        
+        // Điền sẵn subject của parent issue vào title input (loại bỏ pattern [...] ở đầu)
+        var titleInput = row.querySelector('.title-input');
+        if (parentIssueSubject && titleInput) {
+            // Loại bỏ pattern [...] ở đầu subject
+            var cleanSubject = parentIssueSubject.replace(/^\[.*?\]\s*/, '');
+            titleInput.value = cleanSubject;
+        }
+        
         tbody.appendChild(row);
     }
-    window.removeRow = function(button) {
+    function removeRow(button) {
+        console.log('Remove row clicked');
         var tbody = document.getElementById('taskTableBody');
         if (tbody.children.length > 1) {
-            button.closest('tr').remove();
+            var row = button.closest('tr');
+            if (row) {
+                row.remove();
+                console.log('Row removed successfully');
+            } else {
+                console.log('Could not find row to remove');
+                showStatus('Error removing row', 'error');
+            }
         } else {
+            console.log('Cannot remove last row');
             showStatus('Must have at least 1 task', 'error');
         }
-    };
+    }
     function showStatus(message, type) {
         var status = document.getElementById('status');
         status.textContent = message;
@@ -205,23 +230,63 @@
                 
                 console.log('=== RELOAD PROCESS COMPLETED ===');
                 
-                // Đóng popup sau 5 giây để user có thể xem console
+                // Đóng popup sau 0.5 giây để user có thể xem console
                 setTimeout(function() {
                     console.log('🔄 Closing popup...');
                     window.close();
-                }, 5000);
-            }, 3000);
+                }, 500);
+            }, 500);
             
         } catch (error) {
             hideLoading();
             showStatus('Error creating tasks: ' + error.message, 'error');
         }
     }
+    
+    // Function để fetch subject của parent issue
+    async function fetchParentIssueSubject() {
+        try {
+            console.log('Fetching parent issue subject for ID:', parentIssueId);
+            var response = await redmineApiRequest('https://redmine.famishare.jp/issues/' + parentIssueId + '.json', 'GET');
+            
+            if (response && response.ok && response.data && response.data.issue) {
+                parentIssueSubject = response.data.issue.subject;
+                console.log('Parent issue subject:', parentIssueSubject);
+                return true;
+            } else {
+                console.log('Failed to fetch parent issue subject:', response);
+                return false;
+            }
+        } catch (error) {
+            console.log('Error fetching parent issue subject:', error);
+            return false;
+        }
+    }
+    
+    // Initialize popup
+    async function initializePopup() {
+        // Fetch parent issue subject trước
+        await fetchParentIssueSubject();
+        
+        // Sau đó thêm row đầu tiên
+        addTaskRow();
+    }
+    
     document.getElementById('addRow').addEventListener('click', addTaskRow);
     document.getElementById('createTasks').addEventListener('click', createTasks);
     document.getElementById('closeNow').addEventListener('click', function() {
         console.log('🔄 User manually closed popup');
         window.close();
     });
-    addTaskRow();
+    
+    // Event delegation cho remove buttons
+    document.getElementById('taskTableBody').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-btn')) {
+            e.preventDefault();
+            removeRow(e.target);
+        }
+    });
+    
+    // Khởi tạo popup
+    initializePopup();
 })(); 

@@ -26,11 +26,19 @@ echo 📋 Copying files...
 copy manifest.json build\extension\ >nul
 copy popup.html build\extension\ >nul  
 copy styles.css build\extension\ >nul
+copy content-script.js build\extension\ >nul
+copy multi-task.html build\extension\ >nul
+copy multi-task.js build\extension\ >nul
+copy move-to-date.html build\extension\ >nul
+copy move-to-date.js build\extension\ >nul
 if exist images xcopy images build\extension\images\ /e /i /q >nul
 
 :: Backup originals
 copy background.js build\background.original.js >nul
 copy popup.js build\popup.original.js >nul
+copy content-script.js build\content-script.original.js >nul
+copy multi-task.js build\multi-task.original.js >nul
+copy move-to-date.js build\move-to-date.original.js >nul
 
 :: Light obfuscation for background.js (preserve functionality)
 echo 🔒 Light obfuscation for background.js...
@@ -83,6 +91,81 @@ else (
     echo ✅ Light popup obfuscation successful
 )
 
+:: Light obfuscation for content-script.js
+echo 🔒 Light obfuscation for content-script.js...
+call javascript-obfuscator content-script.js ^
+    --output build\extension\content-script.js ^
+    --compact true ^
+    --rename-globals false ^
+    --string-array false
+
+if %errorlevel% neq 0 (
+    echo ⚠️ Content script obfuscation failed, trying minimal...
+    call javascript-obfuscator content-script.js ^
+        --output build\extension\content-script.js ^
+        --compact true
+    
+    if %errorlevel% neq 0 (
+        echo ❌ Content script obfuscation failed, copying original
+        copy content-script.js build\extension\content-script.js >nul
+        echo ⚠️ WARNING: content-script.js is not obfuscated!
+    else (
+        echo ✅ Minimal content script obfuscation successful
+    )
+else (
+    echo ✅ Light content script obfuscation successful
+)
+
+:: Light obfuscation for multi-task.js
+echo 🔒 Light obfuscation for multi-task.js...
+call javascript-obfuscator multi-task.js ^
+    --output build\extension\multi-task.js ^
+    --compact true ^
+    --rename-globals false ^
+    --string-array false
+
+if %errorlevel% neq 0 (
+    echo ⚠️ Multi-task obfuscation failed, trying minimal...
+    call javascript-obfuscator multi-task.js ^
+        --output build\extension\multi-task.js ^
+        --compact true
+    
+    if %errorlevel% neq 0 (
+        echo ❌ Multi-task obfuscation failed, copying original
+        copy multi-task.js build\extension\multi-task.js >nul
+        echo ⚠️ WARNING: multi-task.js is not obfuscated!
+    else (
+        echo ✅ Minimal multi-task obfuscation successful
+    )
+else (
+    echo ✅ Light multi-task obfuscation successful
+)
+
+:: Light obfuscation for move-to-date.js
+echo 🔒 Light obfuscation for move-to-date.js...
+call javascript-obfuscator move-to-date.js ^
+    --output build\extension\move-to-date.js ^
+    --compact true ^
+    --rename-globals false ^
+    --string-array false
+
+if %errorlevel% neq 0 (
+    echo ⚠️ Move-to-date obfuscation failed, trying minimal...
+    call javascript-obfuscator move-to-date.js ^
+        --output build\extension\move-to-date.js ^
+        --compact true
+    
+    if %errorlevel% neq 0 (
+        echo ❌ Move-to-date obfuscation failed, copying original
+        copy move-to-date.js build\extension\move-to-date.js >nul
+        echo ⚠️ WARNING: move-to-date.js is not obfuscated!
+    else (
+        echo ✅ Minimal move-to-date obfuscation successful
+    )
+else (
+    echo ✅ Light move-to-date obfuscation successful
+)
+
 :: Create README
 echo 📝 Creating README...
 (
@@ -129,6 +212,12 @@ for %%A in (background.js) do echo    Original background.js: %%~zA bytes
 for %%A in (build\extension\background.js) do echo    Obfuscated background.js: %%~zA bytes
 for %%A in (popup.js) do echo    Original popup.js: %%~zA bytes  
 for %%A in (build\extension\popup.js) do echo    Obfuscated popup.js: %%~zA bytes
+for %%A in (content-script.js) do echo    Original content-script.js: %%~zA bytes
+for %%A in (build\extension\content-script.js) do echo    Obfuscated content-script.js: %%~zA bytes
+for %%A in (multi-task.js) do echo    Original multi-task.js: %%~zA bytes
+for %%A in (build\extension\multi-task.js) do echo    Obfuscated multi-task.js: %%~zA bytes
+for %%A in (move-to-date.js) do echo    Original move-to-date.js: %%~zA bytes
+for %%A in (build\extension\move-to-date.js) do echo    Obfuscated move-to-date.js: %%~zA bytes
 
 echo.
 echo 🎉 Light obfuscation completed!

@@ -328,7 +328,7 @@ async function executeMove() {
                         // Đóng popup sau khi refresh thành công
                         setTimeout(() => {
                             closeWindow();
-                        }, 1000);
+                        }, 500);
                     } else {
                         // Nếu background refresh thất bại, thử phương pháp khác
                         try {
@@ -337,22 +337,22 @@ async function executeMove() {
                                 console.log('Refreshed parent window via window.opener');
                                 setTimeout(() => {
                                     closeWindow();
-                                }, 1000);
+                                }, 500);
                             } else {
-                                // Đóng popup sau 3 giây nếu không refresh được
+                                // Đóng popup sau 0.5 giây nếu không refresh được
                                 setTimeout(() => {
                                     closeWindow();
-                                }, 3000);
+                                }, 500);
                             }
                         } catch (error) {
                             console.log('Error with window.opener:', error);
                             setTimeout(() => {
                                 closeWindow();
-                            }, 3000);
+                            }, 500);
                         }
                     }
                 });
-            }, 2000);
+            }, 500);
         } else {
             const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
             showError(`Failed to move dates: ${errorMsg}`);
@@ -443,13 +443,13 @@ function closeWithRefresh() {
         }
     });
     
-    // Timeout fallback - đóng popup sau 3 giây nếu không có response
+    // Timeout fallback - đóng popup sau 0.5 giây nếu không có response
     setTimeout(() => {
         if (!refreshAttempted) {
             console.log('Refresh timeout, closing popup');
             closeWindow();
         }
-    }, 3000);
+    }, 500);
 }
 
 // Hiển thị/ẩn loading

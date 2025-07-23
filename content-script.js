@@ -159,9 +159,19 @@ function getTicketIdFromMenu(menu) {
 
 async function getApiKey() {
   return new Promise(resolve => {
-    chrome.storage.local.get(['redmineApiKey'], result => {
-      resolve(result.redmineApiKey);
-    });
+    try {
+      chrome.storage.local.get(['redmineApiKey'], result => {
+        if (chrome.runtime.lastError) {
+          console.log('Storage access error in getApiKey:', chrome.runtime.lastError);
+          resolve(null);
+        } else {
+          resolve(result.redmineApiKey);
+        }
+      });
+    } catch (error) {
+      console.log('Extension context error in getApiKey:', error);
+      resolve(null);
+    }
   });
 }
 
@@ -175,22 +185,43 @@ function sendSynchronize(ticketId) {
     // Hiển thị loading state
     showLoadingState('Synchronizing issues...');
     
-    chrome.storage.local.set({ isSynchronizing: true, syncJustFinished: false });
-    chrome.runtime.sendMessage({ type: 'START_SYNCHRONIZE', issueId: ticketId, apiKey }, response => {
-      chrome.storage.local.set({ isSynchronizing: false, syncJustFinished: true });
-      hideLoadingState();
+    try {
+      chrome.storage.local.set({ isSynchronizing: true, syncJustFinished: false }, () => {
+        if (chrome.runtime.lastError) {
+          console.log('Storage set error in sendSynchronize:', chrome.runtime.lastError);
+        }
+      });
       
-      if (response && !response.ok) {
-        alert('Synchronize failed: ' + (response.error || 'Unknown error'));
-      } else {
-        alert('Auto-update status for all issues with children completed!\n\nPage will refresh automatically in 1.5 seconds.');
-        
-        // Refresh page sau khi hoàn thành
-        setTimeout(() => {
-          location.reload();
-        }, 1500);
-      }
-    });
+      chrome.runtime.sendMessage({ type: 'START_SYNCHRONIZE', issueId: ticketId, apiKey }, response => {
+        try {
+          chrome.storage.local.set({ isSynchronizing: false, syncJustFinished: true }, () => {
+            if (chrome.runtime.lastError) {
+              console.log('Storage set error in sendSynchronize response:', chrome.runtime.lastError);
+            }
+          });
+          hideLoadingState();
+          
+          if (response && !response.ok) {
+            alert('Synchronize failed: ' + (response.error || 'Unknown error'));
+          } else {
+            alert('Auto-update status for all issues with children completed!\n\nPage will refresh automatically in 0.5 seconds.');
+            
+            // Refresh page sau khi hoàn thành
+            setTimeout(() => {
+              location.reload();
+            }, 500);
+          }
+        } catch (error) {
+          console.log('Extension context error in sendSynchronize response:', error);
+          hideLoadingState();
+          alert('Synchronize failed: Extension context error');
+        }
+      });
+    } catch (error) {
+      console.log('Extension context error in sendSynchronize:', error);
+      hideLoadingState();
+      alert('Synchronize failed: Extension context error');
+    }
   });
 }
 
@@ -200,9 +231,14 @@ function openMultiTask(ticketId) {
       alert('Please save your Redmine API Key first in extension popup.');
       return;
     }
-    const extensionUrl = chrome.runtime.getURL('multi-task.html');
-    const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
-    window.open(url, '_blank');
+    try {
+      const extensionUrl = chrome.runtime.getURL('multi-task.html');
+      const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
+      window.open(url, '_blank');
+    } catch (error) {
+      console.log('Extension context error in openMultiTask:', error);
+      alert('Failed to open multi-task popup: Extension context error');
+    }
   });
 }
 
@@ -223,34 +259,46 @@ function moveIssueDates(ticketId, days) {
     // Hiển thị loading state
     showLoadingState(`Moving issues ${absDays} working day(s) ${direction}...`);
     
-    chrome.runtime.sendMessage({ 
-      type: 'MOVE_ISSUE_DATES', 
-      issueId: ticketId, 
-      days: days, 
-      apiKey: apiKey 
-    }, response => {
-      hideLoadingState();
-      
-      if (response && response.ok) {
-        const { summary } = response;
-        const successMsg = `Successfully moved ${summary.success} out of ${summary.total} issues ${absDays} working day(s) ${direction}.`;
-        if (summary.failed > 0) {
-          alert(`${successMsg}\n${summary.failed} issues failed to update.\n\nPage will refresh automatically in 1.5 seconds.`);
-        } else {
-          alert(`${successMsg}\n\nPage will refresh automatically in 1.5 seconds.`);
+    try {
+      chrome.runtime.sendMessage({ 
+        type: 'MOVE_ISSUE_DATES', 
+        issueId: ticketId, 
+        days: days, 
+        apiKey: apiKey 
+      }, response => {
+        try {
+          hideLoadingState();
+          
+          if (response && response.ok) {
+            const { summary } = response;
+            const successMsg = `Successfully moved ${summary.success} out of ${summary.total} issues ${absDays} working day(s) ${direction}.`;
+            if (summary.failed > 0) {
+              alert(`${successMsg}\n${summary.failed} issues failed to update.\n\nPage will refresh automatically in 0.5 seconds.`);
+            } else {
+              alert(`${successMsg}\n\nPage will refresh automatically in 0.5 seconds.`);
+            }
+            console.log('Move dates completed:', response);
+            
+            // Refresh page sau khi hoàn thành
+            setTimeout(() => {
+              location.reload();
+            }, 500);
+          } else {
+            const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
+            alert(`Failed to move dates: ${errorMsg}`);
+            console.error('Move dates failed:', response);
+          }
+        } catch (error) {
+          console.log('Extension context error in moveIssueDates response:', error);
+          hideLoadingState();
+          alert('Move dates failed: Extension context error');
         }
-        console.log('Move dates completed:', response);
-        
-        // Refresh page sau khi hoàn thành
-        setTimeout(() => {
-          location.reload();
-        }, 1500);
-      } else {
-        const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
-        alert(`Failed to move dates: ${errorMsg}`);
-        console.error('Move dates failed:', response);
-      }
-    });
+      });
+    } catch (error) {
+      console.log('Extension context error in moveIssueDates:', error);
+      hideLoadingState();
+      alert('Move dates failed: Extension context error');
+    }
   });
 }
 
@@ -260,9 +308,14 @@ function openMoveToDate(ticketId) {
       alert('Please save your Redmine API Key first in extension popup.');
       return;
     }
-    const extensionUrl = chrome.runtime.getURL('move-to-date.html');
-    const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
-    window.open(url, '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
+    try {
+      const extensionUrl = chrome.runtime.getURL('move-to-date.html');
+      const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
+      window.open(url, '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
+    } catch (error) {
+      console.log('Extension context error in openMoveToDate:', error);
+      alert('Failed to open move-to-date popup: Extension context error');
+    }
   });
 }
 
@@ -416,26 +469,50 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 // Lắng nghe message từ background script để refresh page
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'REFRESH_PAGE') {
-    console.log('Content script: Refreshing page...');
-    location.reload();
-  }
-});
+try {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    try {
+      if (message.type === 'REFRESH_PAGE') {
+        console.log('Content script: Refreshing page...');
+        location.reload();
+      }
+    } catch (error) {
+      console.log('Extension context error in message listener:', error);
+    }
+  });
+} catch (error) {
+  console.log('Extension context error setting up message listener:', error);
+}
 
 // Kiểm tra storage để tự động refresh page
 setInterval(() => {
-  chrome.storage.local.get(['shouldRefreshPage', 'refreshTime', 'issueId'], (result) => {
-    if (result.shouldRefreshPage && result.refreshTime) {
-      const timeDiff = Date.now() - result.refreshTime;
-      // Chỉ refresh nếu thời gian chênh lệch < 10 giây (để tránh refresh liên tục)
-      if (timeDiff < 10000) {
-        console.log('Content script: Auto-refreshing page from storage...');
-        chrome.storage.local.remove(['shouldRefreshPage', 'refreshTime', 'issueId']);
-        location.reload();
+  try {
+    chrome.storage.local.get(['shouldRefreshPage', 'refreshTime', 'issueId'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.log('Storage access error:', chrome.runtime.lastError);
+        return;
       }
+      if (result.shouldRefreshPage && result.refreshTime) {
+        const timeDiff = Date.now() - result.refreshTime;
+        // Chỉ refresh nếu thời gian chênh lệch < 10 giây (để tránh refresh liên tục)
+        if (timeDiff < 10000) {
+          console.log('Content script: Auto-refreshing page from storage...');
+          chrome.storage.local.remove(['shouldRefreshPage', 'refreshTime', 'issueId'], () => {
+            if (chrome.runtime.lastError) {
+              console.log('Storage remove error:', chrome.runtime.lastError);
+            }
+          });
+          location.reload();
+        }
+      }
+    });
+  } catch (error) {
+    console.log('Extension context error in storage check:', error);
+    // Nếu extension context bị invalid, dừng interval
+    if (error.message.includes('Extension context invalidated')) {
+      clearInterval(this);
     }
-  });
+  }
 }, 1000); // Kiểm tra mỗi giây
 
 // Hiển thị loading state

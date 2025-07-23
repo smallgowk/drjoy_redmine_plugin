@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // API Key logic
     const apiKeyInput = document.getElementById('apiKeyInput');
     const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+    const findKeyBtn = document.getElementById('findKeyBtn');
+    
     if (apiKeyInput && saveApiKeyBtn) {
         // Load API key nếu đã lưu
         chrome.storage.local.get(['redmineApiKey'], (result) => {
@@ -15,6 +17,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 saveApiKeyBtn.textContent = 'Saved!';
                 setTimeout(() => { saveApiKeyBtn.textContent = 'Save'; }, 1200);
             });
+        });
+    }
+    
+    // Find Key button logic
+    if (findKeyBtn) {
+        findKeyBtn.addEventListener('click', function() {
+            chrome.tabs.create({ url: 'https://redmine.famishare.jp/my/account' });
         });
     }
 
