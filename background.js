@@ -61,7 +61,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const data = await res.json();
                     return data.issues || [];
                 }
-                async function buildTree(issue, depth) {
+                // Hàm lấy prefix từ subject
+                function getPrefix(subject) {
+                    const match = subject && subject.match(/^\[(.*?)\]/);
+                    return match ? match[1] : '';
+                }
+
+                // Hàm lấy tất cả node Level 3 trong nhánh (đệ quy)
+                function getAllLevel3InBranch(node, result=[]) {
+                    if (node.level === 3) {
+                        result.push(node);
+                    }
+                    if (node.children && node.children.length > 0) {
+                        for (const child of node.children) {
+                            getAllLevel3InBranch(child, result);
+                        }
+                    }
+                    return result;
+                }
+
+                // Sửa buildTree để gán level
+                async function buildTree(issue, depth, level=0) {
+                    issue.level = level;
                     if (depth === 0) return issue;
                     const children = await fetchChildren(issue.id);
                     issue.children = [];
@@ -70,12 +91,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                             headers: { 'X-Redmine-API-Key': apiKey }
                         });
                         const childDetail = childDetailRes.ok ? (await childDetailRes.json()).issue : child;
-                        const childTree = await buildTree(childDetail, depth - 1);
+                        const childTree = await buildTree(childDetail, depth - 1, level + 1);
                         issue.children.push(childTree);
                     }
                     return issue;
                 }
-                const issueTree = await buildTree(rootIssue, 3);
+                // Khi buildTree, truyền level=0
+                const issueTree = await buildTree(rootIssue, 3, 0);
                 // 3. Process update status
                 function allChildrenClosed(children) {
                     return children.length > 0 && children.every(child => child.status && child.status.id === 5);
@@ -106,24 +128,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     });
                     return res.ok;
                 }
-                // Thay thế processNode bằng post-order traversal
+                // Sửa processNodePostOrder để áp dụng các điều kiện mới
                 async function processNodePostOrder(node) {
                     if (node.children && node.children.length > 0) {
                         for (const child of node.children) {
                             await processNodePostOrder(child);
                         }
                         // Log toàn bộ child và status của node hiện tại
-                        console.log('BG: Node', node.id, 'children:', node.children.map(c => ({id: c.id, status: c.status ? c.status : null})));
-                        // Sau khi đã cập nhật hết children, mới xét node hiện tại
+                        console.log('BG: Node', node.id, 'level', node.level, 'children:', node.children.map(c => ({id: c.id, status: c.status ? c.status : null, subject: c.subject})));
                         const childrenStatuses = node.children.map(c => c.status ? c.status.id : null);
-                        if (childrenStatuses.every(s => s === 5) && node.status && node.status.id !== 5) {
-                            console.log('BG: All children closed, updating node', node.id, 'to status 5');
+                        // Điều kiện 1: Đóng ticket nếu toàn bộ con đã Closed
+                        if ([1,2,3].includes(node.level) && childrenStatuses.every(s => s === 5) && node.status && node.status.id !== 5) {
+                            console.log('BG: All children closed, updating node', node.id, 'to status 5 (Closed)');
                             await updateIssueStatus(node, 5);
-                            node.status.id = 5; // Cập nhật local để cha trên biết
+                            node.status.id = 5;
+                        // Điều kiện 2: Level 1 prefix CodingPhase, toàn bộ Level 3 prefix Study/Coding đều Closed
+                        } else if (node.level === 1 && getPrefix(node.subject) === 'CodingPhase') {
+                            const allLevel3 = getAllLevel3InBranch(node);
+                            const filtered = allLevel3.filter(n => ['Study','Coding'].includes(getPrefix(n.subject)));
+                            if (filtered.length > 0 && filtered.every(n => n.status && n.status.id === 5)) {
+                                console.log('BG: All Level 3 with prefix Study/Coding closed, updating node', node.id, 'and its Level 2 ancestors to status 3 (Resolved)');
+                                await updateIssueStatus(node, 3); // Level 1
+                                node.status.id = 3;
+                                // Update Level 2 ancestors in branch
+                                function updateLevel2Resolved(n) {
+                                    if (n.level === 2 && n.status && n.status.id !== 3) {
+                                        updateIssueStatus(n, 3);
+                                        n.status.id = 3;
+                                    }
+                                    if (n.children) n.children.forEach(updateLevel2Resolved);
+                                }
+                                node.children.forEach(updateLevel2Resolved);
+                            } else {
+                                console.log('BG: Not all Level 3 with prefix Study/Coding are closed for node', node.id);
+                            }
+                        // Điều kiện 3: In Progress nếu có ít nhất một con khác New
                         } else if (childrenStatuses.some(s => s !== 1) && node.status && node.status.id === 1) {
-                            console.log('BG: Some child not new, updating node', node.id, 'to status 2');
+                            console.log('BG: Some child not new, updating node', node.id, 'to status 2 (In Progress)');
                             await updateIssueStatus(node, 2, 20);
-                            node.status.id = 2; // Cập nhật local để cha trên biết
+                            node.status.id = 2;
                         } else {
                             console.log('BG: Node', node.id, 'does not meet any update condition');
                         }
@@ -131,6 +174,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         console.log('BG: Node', node.id, 'has no children, skip');
                     }
                 }
+                // Duyệt post-order
                 await processNodePostOrder(issueTree);
                 await chrome.storage.local.set({ isSynchronizing: false });
                 sendResponse({ ok: true });
