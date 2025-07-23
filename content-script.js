@@ -79,7 +79,8 @@ function addCustomContextMenuItems() {
           e.preventDefault();
           e.stopPropagation();
           const ticketId = getTicketIdFromMenu(menu);
-          alert(`Move to date (Ticket #${ticketId})`);
+          // TODO: Implement custom date picker for move to specific date
+          alert(`Move to date feature will be implemented soon (Ticket #${ticketId})`);
           menu.style.display = 'none';
         };
         li.appendChild(a);
@@ -99,13 +100,13 @@ function addCustomContextMenuItems() {
           const subA = document.createElement('a');
           subA.href = '#';
           subA.textContent = d + (d === 1 ? ' day' : ' days');
-          subA.onclick = function(e) {
+                  subA.onclick = function(e) {
             e.preventDefault();
             e.stopPropagation();
             const ticketId = getTicketIdFromMenu(menu);
-            alert(`Move Forward - ${d} day(s) (Ticket #${ticketId})`);
+            moveIssueDates(ticketId, d);
             menu.style.display = 'none';
-          };
+        };
           subLi.appendChild(subA);
           subUl.appendChild(subLi);
         });
@@ -131,7 +132,7 @@ function addCustomContextMenuItems() {
             e.preventDefault();
             e.stopPropagation();
             const ticketId = getTicketIdFromMenu(menu);
-            alert(`Move Backward - ${d} day(s) (Ticket #${ticketId})`);
+            moveIssueDates(ticketId, -d);
             menu.style.display = 'none';
           };
           subLi.appendChild(subA);
@@ -192,6 +193,48 @@ function openMultiTask(ticketId) {
     const extensionUrl = chrome.runtime.getURL('multi-task.html');
     const url = `${extensionUrl}?issueId=${encodeURIComponent(ticketId)}&apiKey=${encodeURIComponent(apiKey)}`;
     window.open(url, '_blank');
+  });
+}
+
+function moveIssueDates(ticketId, days) {
+  getApiKey().then(apiKey => {
+    if (!apiKey) {
+      alert('Please save your Redmine API Key first in extension popup.');
+      return;
+    }
+    
+    const direction = days > 0 ? 'forward' : 'backward';
+    const absDays = Math.abs(days);
+    
+    if (!confirm(`Are you sure you want to move issue #${ticketId} and all its children ${absDays} working day(s) ${direction}? (Weekends will be skipped)`)) {
+      return;
+    }
+    
+    // Hiển thị loading message
+    const loadingMsg = `Moving issue #${ticketId} and children ${absDays} working day(s) ${direction}...`;
+    console.log(loadingMsg);
+    
+    chrome.runtime.sendMessage({ 
+      type: 'MOVE_ISSUE_DATES', 
+      issueId: ticketId, 
+      days: days, 
+      apiKey: apiKey 
+    }, response => {
+      if (response && response.ok) {
+        const { summary } = response;
+        const successMsg = `Successfully moved ${summary.success} out of ${summary.total} issues ${absDays} working day(s) ${direction}.`;
+        if (summary.failed > 0) {
+          alert(`${successMsg}\n${summary.failed} issues failed to update.`);
+        } else {
+          alert(successMsg);
+        }
+        console.log('Move dates completed:', response);
+      } else {
+        const errorMsg = response && response.error ? response.error : 'Unknown error occurred';
+        alert(`Failed to move dates: ${errorMsg}`);
+        console.error('Move dates failed:', response);
+      }
+    });
   });
 }
 

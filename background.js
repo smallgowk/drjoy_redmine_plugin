@@ -127,5 +127,145 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })();
         return true; // keep message channel open for async
     }
+    // Lắng nghe message để move ngày cho issue và tất cả issue con
+    if (message.type === 'MOVE_ISSUE_DATES') {
+        (async () => {
+            try {
+                const { issueId, days, apiKey } = message;
+                console.log(`BG: Moving issue ${issueId} and children by ${days} days`);
+                
+                // Hàm lấy thông tin chi tiết issue
+                async function getIssueDetail(issueId) {
+                    const res = await fetch(`https://redmine.famishare.jp/issues/${issueId}.json`, {
+                        headers: { 'X-Redmine-API-Key': apiKey }
+                    });
+                    if (!res.ok) throw new Error(`Failed to fetch issue ${issueId}`);
+                    const data = await res.json();
+                    return data.issue;
+                }
+                
+                // Hàm lấy tất cả issue con (recursive)
+                async function getAllChildren(parentId) {
+                    const res = await fetch(`https://redmine.famishare.jp/issues.json?parent_id=${parentId}`, {
+                        headers: { 'X-Redmine-API-Key': apiKey }
+                    });
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    const children = data.issues || [];
+                    
+                    // Lấy thông tin chi tiết cho mỗi child
+                    const detailedChildren = [];
+                    for (const child of children) {
+                        const childDetail = await getIssueDetail(child.id);
+                        detailedChildren.push(childDetail);
+                        
+                        // Lấy children của child (recursive)
+                        const grandChildren = await getAllChildren(child.id);
+                        detailedChildren.push(...grandChildren);
+                    }
+                    
+                    return detailedChildren;
+                }
+                
+                // Lấy issue chính và tất cả issue con
+                const mainIssue = await getIssueDetail(issueId);
+                const allChildren = await getAllChildren(issueId);
+                const allIssues = [mainIssue, ...allChildren];
+                
+                console.log(`BG: Found ${allIssues.length} issues to update`);
+                
+                // Hàm tính ngày làm việc (bỏ qua thứ 7, chủ nhật)
+                function addWorkingDays(date, days) {
+                    const result = new Date(date);
+                    const direction = days > 0 ? 1 : -1;
+                    const absDays = Math.abs(days);
+                    
+                    let workingDaysAdded = 0;
+                    while (workingDaysAdded < absDays) {
+                        result.setDate(result.getDate() + direction);
+                        const dayOfWeek = result.getDay(); // 0 = Sunday, 6 = Saturday
+                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                            workingDaysAdded++;
+                        }
+                    }
+                    
+                    return result;
+                }
+                
+                // Hàm cập nhật ngày cho một issue
+                async function updateIssueDates(issue) {
+                    const updateData = {
+                        issue: {
+                            id: issue.id,
+                            subject: issue.subject,
+                            assigned_to_id: issue.assigned_to ? issue.assigned_to.id : undefined,
+                            estimated_hours: issue.estimated_hours,
+                            status_id: issue.status ? issue.status.id : undefined
+                        }
+                    };
+                    
+                    // Cập nhật start_date nếu có
+                    if (issue.start_date) {
+                        const newStartDate = addWorkingDays(issue.start_date, days);
+                        updateData.issue.start_date = newStartDate.toISOString().split('T')[0];
+                    }
+                    
+                    // Cập nhật due_date nếu có
+                    if (issue.due_date) {
+                        const newDueDate = addWorkingDays(issue.due_date, days);
+                        updateData.issue.due_date = newDueDate.toISOString().split('T')[0];
+                    }
+                    
+                    const res = await fetch(`https://redmine.famishare.jp/issues/${issue.id}.json`, {
+                        method: 'PUT',
+                        headers: {
+                            'X-Redmine-API-Key': apiKey,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    if (!res.ok) {
+                        throw new Error(`Failed to update issue ${issue.id}: ${res.statusText}`);
+                    }
+                    
+                    return res.ok;
+                }
+                
+                // Cập nhật tất cả issues
+                const results = [];
+                for (const issue of allIssues) {
+                    try {
+                        await updateIssueDates(issue);
+                        results.push({ id: issue.id, success: true });
+                        console.log(`BG: Updated issue ${issue.id} successfully`);
+                    } catch (error) {
+                        results.push({ id: issue.id, success: false, error: error.message });
+                        console.error(`BG: Failed to update issue ${issue.id}:`, error);
+                    }
+                }
+                
+                const successCount = results.filter(r => r.success).length;
+                const failedCount = results.filter(r => !r.success).length;
+                
+                console.log(`BG: Move dates completed. Success: ${successCount}, Failed: ${failedCount}`);
+                
+                sendResponse({ 
+                    ok: true, 
+                    results,
+                    summary: {
+                        total: allIssues.length,
+                        success: successCount,
+                        failed: failedCount
+                    }
+                });
+                
+            } catch (e) {
+                console.error('BG: Move dates error:', e);
+                sendResponse({ ok: false, error: e.message });
+            }
+        })();
+        return true; // keep message channel open for async
+    }
     return false;
 });
