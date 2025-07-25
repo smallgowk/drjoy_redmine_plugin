@@ -47,21 +47,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (myBugsButton) {
         myBugsButton.addEventListener('click', function() {
-            const url = 'https://redmine.famishare.jp/issues?utf8=%E2%9C%93&set_filter=1&sort=id%3Adesc&f%5B%5D=status_id&op%5Bstatus_id%5D=o&f%5B%5D=assigned_to_id&op%5Bassigned_to_id%5D=%3D&v%5Bassigned_to_id%5D%5B%5D=me&f%5B%5D=tracker_id&op%5Btracker_id%5D=%3D&v%5Btracker_id%5D%5B%5D=1&f%5B%5D=&c%5B%5D=status&c%5B%5D=subject&c%5B%5D=cf_100&c%5B%5D=spent_hours&c%5B%5D=cf_4&c%5B%5D=cf_8&c%5B%5D=cf_9&c%5B%5D=start_date&c%5B%5D=due_date&c%5B%5D=cf_10&group_by=&t%5B%5D=';
+            const url = 'https://redmine.famishare.jp/issues?utf8=%E2%9C%93&set_filter=1&sort=id%3Adesc&f%5B%5D=status_id&op%5Bstatus_id%5D=o&f%5B%5D=assigned_to_id&op%5Bassigned_to_id%5D=%3D&v%5Bassigned_to_id%5D%5B%5D=me&f%5B%5D=tracker_id&op%5Btracker_id%5D=%3D&v%5Btracker_id%5D%5B%5D=1&f%5B%5D=&c%5B%5D=status&c%5B%5D=subject&c%5B%5D=cf_100&c%5B%5D=spent_hours&c%5B%5D=cf_4&c%5B%5D=cf_8&c%5B%5D=cf_9&c%5B%5D=start_date&c%5B%5D=due_date&c%5B%5D=cf_10&group_by=fixed_version&t%5B%5D=';
             chrome.tabs.create({ url });
         });
     }
 
     if (myTasksButton) {
         myTasksButton.addEventListener('click', function() {
-            const url = 'https://redmine.famishare.jp/issues?utf8=%E2%9C%93&set_filter=1&f%5B%5D=status_id&op%5Bstatus_id%5D=o&f%5B%5D=assigned_to_id&op%5Bassigned_to_id%5D=%3D&v%5Bassigned_to_id%5D%5B%5D=me&f%5B%5D=tracker_id&op%5Btracker_id%5D=%21&v%5Btracker_id%5D%5B%5D=1&f%5B%5D=&c%5B%5D=project&c%5B%5D=tracker&c%5B%5D=status&c%5B%5D=priority&c%5B%5D=cf_37&c%5B%5D=subject&c%5B%5D=assigned_to&c%5B%5D=total_spent_hours&c%5B%5D=created_on&c%5B%5D=updated_on&group_by=&t%5B%5D=';
+            const url = 'https://redmine.famishare.jp/issues?utf8=%E2%9C%93&set_filter=1&sort=id%3Adesc&f%5B%5D=status_id&op%5Bstatus_id%5D=o&f%5B%5D=assigned_to_id&op%5Bassigned_to_id%5D=%3D&v%5Bassigned_to_id%5D%5B%5D=me&f%5B%5D=tracker_id&op%5Btracker_id%5D=%21&v%5Btracker_id%5D%5B%5D=1&f%5B%5D=&available_columns%5B%5D=fixed_version&c%5B%5D=project&c%5B%5D=tracker&c%5B%5D=status&c%5B%5D=priority&c%5B%5D=cf_37&c%5B%5D=subject&c%5B%5D=assigned_to&c%5B%5D=total_spent_hours&c%5B%5D=created_on&c%5B%5D=updated_on&group_by=fixed_version&t%5B%5D=';
             chrome.tabs.create({ url });
         });
     }
 
     if (mySpentTimeButton) {
         mySpentTimeButton.addEventListener('click', function() {
-            const url = 'https://redmine.famishare.jp/projects/drjoy_vn/time_entries?utf8=%E2%9C%93&set_filter=1&sort=spent_on%3Adesc&f%5B%5D=spent_on&op%5Bspent_on%5D=*&f%5B%5D=user_id&op%5Buser_id%5D=%3D&v%5Buser_id%5D%5B%5D=me&f%5B%5D=&c%5B%5D=spent_on&c%5B%5D=user&c%5B%5D=issue&c%5B%5D=hours&group_by=&t%5B%5D=hours&t%5B%5D=';
+            const url = 'https://redmine.famishare.jp/projects/drjoy_vn/time_entries?utf8=%E2%9C%93&set_filter=1&sort=spent_on%3Adesc&f%5B%5D=spent_on&op%5Bspent_on%5D=*&f%5B%5D=user_id&op%5Buser_id%5D=%3D&v%5Buser_id%5D%5B%5D=me&f%5B%5D=&c%5B%5D=spent_on&c%5B%5D=user&c%5B%5D=issue&c%5B%5D=hours&group_by=spent_on&t%5B%5D=hours&t%5B%5D=';
             chrome.tabs.create({ url });
         });
     }
